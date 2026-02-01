@@ -4,17 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sechs.in | Wallpapers & Artificial Plants</title>
-    <link rel="icon" href="favicon2.png" type="image/png">
+    <!-- Favicon -->
+    <link rel="icon" href="1767195556938.jpg.jpg" type="image/jpeg">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // YOUR FIREBASE CONFIGURATION
         const firebaseConfig = {
             apiKey: "AIzaSyCt3X1Bny5WoChcOJF3u6HHMno8Q1NRkGA",
             authDomain: "sechserodein.firebaseapp.com",
@@ -28,123 +28,98 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        
-        // Use a fixed App ID for your production database path
         const appId = 'sechserodein';
         
-        // Global state for products
         let allProducts = [];
-        let unsubscribe = null; // Store the listener unsubscribe function
+        let unsubscribe = null;
 
-        // Auth & Initial Load
         async function initApp() {
             try {
-                // Try anonymous sign-in
                 await signInAnonymously(auth);
-
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        console.log("User authenticated:", user.uid);
-                        loadProducts(); 
-                    }
+                onAuthStateChanged(auth, (user) => {
+                    if (user) { loadProducts(); }
                 });
             } catch (error) {
                 console.error("Auth error:", error);
-                const gallery = document.getElementById('gallery');
-                
-                let errorMessage = 'An error occurred while connecting to the database.';
-                
-                if (error.code === 'auth/operation-not-allowed') {
-                    errorMessage = '<strong>Setup Required:</strong> Please enable "Anonymous" sign-in in your Firebase Console (Authentication > Sign-in method).';
-                } else if (error.code === 'auth/configuration-not-found') {
-                    errorMessage = '<strong>Configuration Error:</strong> Firebase Authentication is not enabled or the API Key is invalid. Please check your Firebase Console settings.';
-                } else if (error.code === 'auth/api-key-not-valid-please-pass-a-valid-api-key') {
-                    errorMessage = '<strong>Invalid API Key:</strong> Please check the API Key in your code.';
-                }
-
-                gallery.innerHTML = `<div class="col-span-full text-center text-red-600 bg-red-50 p-6 rounded-lg border border-red-200">${errorMessage}<br><span class="text-xs text-gray-500 mt-2 block">Error Code: ${error.code}</span></div>`;
             }
         }
 
-        // Fetch Products from Firestore (Real-time Listener)
+        // Handle Contact Form Submission to Firebase
+        window.handleSubmit = async function(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
+            btn.disabled = true;
+
+            const inquiryData = {
+                name: document.getElementById('c_name').value,
+                phone: document.getElementById('c_phone').value,
+                service: document.getElementById('c_service').value,
+                message: document.getElementById('c_message').value,
+                timestamp: new Date().toISOString(),
+                status: 'new'
+            };
+
+            try {
+                const inquiriesRef = collection(db, 'artifacts', appId, 'public', 'data', 'inquiries');
+                await addDoc(inquiriesRef, inquiryData);
+                
+                document.getElementById('contactForm').style.display = 'none';
+                document.getElementById('successMsg').classList.remove('hidden');
+            } catch (err) {
+                console.error("Error sending message:", err);
+                alert("Sorry, there was an error sending your message. Please call us directly.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
         function loadProducts() {
             const gallery = document.getElementById('gallery');
-            // Show loading initially only if we don't have data
             if(allProducts.length === 0) {
-                gallery.innerHTML = '<div class="col-span-full text-center py-10"><i class="fa-solid fa-spinner fa-spin text-3xl text-nature"></i><p class="mt-2 text-gray-500">Loading collections...</p></div>';
+                gallery.innerHTML = '<div class="col-span-full text-center py-10"><i class="fa-solid fa-spinner fa-spin text-3xl text-nature"></i></div>';
             }
 
             try {
-                // Rule 1: Correct Path for Public Data
                 const productsRef = collection(db, 'artifacts', appId, 'public', 'data', 'products');
-                const q = query(productsRef); // Rule 2: Simple query
-
-                // Unsubscribe from previous listener if exists
-                if (unsubscribe) {
-                    unsubscribe();
-                }
-
-                // Use onSnapshot for robustness and real-time updates
+                const q = query(productsRef);
+                if (unsubscribe) unsubscribe();
                 unsubscribe = onSnapshot(q, (snapshot) => {
                     allProducts = [];
-                    snapshot.forEach(doc => {
-                        allProducts.push({ id: doc.id, ...doc.data() });
-                    });
-
-                    renderGallery('all'); // Render with default filter
-                }, (error) => {
-                    console.error("Snapshot error:", error);
-                    // Often permissions error if rules aren't set up
-                    if (error.code === 'permission-denied') {
-                         gallery.innerHTML = '<div class="col-span-full text-center text-red-500">Access Denied. Please check Firestore Security Rules.</div>';
-                    } else {
-                         gallery.innerHTML = '<div class="col-span-full text-center text-red-500">Unable to load products. Checking connection...</div>';
-                    }
+                    snapshot.forEach(doc => allProducts.push({ id: doc.id, ...doc.data() }));
+                    renderGallery('all');
                 });
-
             } catch (error) {
                 console.error("Error setting up products listener:", error);
-                gallery.innerHTML = '<div class="col-span-full text-center text-red-500">Application Error. Please refresh.</div>';
             }
         }
 
-        // Render functions exposed to window for HTML access
         window.renderGallery = function(filterCategory) {
             const gallery = document.getElementById('gallery');
             gallery.innerHTML = '';
-
-            const filtered = filterCategory === 'all' 
-                ? allProducts 
-                : allProducts.filter(p => p.category === filterCategory);
+            const filtered = filterCategory === 'all' ? allProducts : allProducts.filter(p => p.category === filterCategory);
 
             if (filtered.length === 0) {
-                gallery.innerHTML = '<div class="col-span-full text-center text-gray-500 py-20 bg-gray-50 rounded-lg border border-dashed border-gray-300"><i class="fa-regular fa-folder-open text-4xl mb-3 text-gray-300"></i><p>No products found in this category.</p></div>';
+                gallery.innerHTML = '<div class="col-span-full text-center text-gray-500 py-20 bg-gray-50 rounded-lg border border-dashed border-gray-300">No products found in this category.</div>';
                 return;
             }
 
             filtered.forEach(product => {
                 const card = document.createElement('div');
-                
-                // Opacity style for out of stock items
                 const isOutOfStock = product.tag === 'stockout';
                 card.className = `bg-white rounded-xl overflow-hidden shadow-lg card-zoom hover:shadow-xl transition-shadow duration-300 flex flex-col h-full border border-gray-100 ${isOutOfStock ? 'opacity-75' : ''}`;
                 
-                // Determine price display logic
                 const hasDiscount = product.discountPrice && Number(product.discountPrice) > 0;
-                
                 const priceHtml = hasDiscount 
                     ? `<span class="text-red-600 font-bold">₹${product.discountPrice}</span> <span class="text-sm text-gray-400 line-through font-normal ml-2">₹${product.price}</span>` 
                     : `<span class="text-nature font-bold">₹${product.price}</span>`;
 
-                // Badge Logic
                 let badgeHtml = '';
-                if (product.tag === 'limited') {
-                    badgeHtml = '<span class="absolute top-4 left-4 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded shadow-md z-10 animate-pulse">Limited Offer</span>';
-                } else if (product.tag === 'stockout') {
-                    badgeHtml = '<span class="absolute top-4 left-4 bg-gray-800 text-white text-xs font-bold px-3 py-1 rounded shadow-md z-10">Out of Stock</span>';
-                } else if (product.tag === 'new') {
-                    badgeHtml = '<span class="absolute top-4 left-4 bg-green-600 text-white text-xs font-bold px-3 py-1 rounded shadow-md z-10">New Arrival</span>';
-                }
+                if (product.tag === 'limited') badgeHtml = '<span class="absolute top-4 left-4 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded shadow-md z-10 animate-pulse">Limited Offer</span>';
+                else if (product.tag === 'stockout') badgeHtml = '<span class="absolute top-4 left-4 bg-gray-800 text-white text-xs font-bold px-3 py-1 rounded shadow-md z-10">Out of Stock</span>';
+                else if (product.tag === 'new') badgeHtml = '<span class="absolute top-4 left-4 bg-green-600 text-white text-xs font-bold px-3 py-1 rounded shadow-md z-10">New Arrival</span>';
 
                 card.innerHTML = `
                     <div class="relative overflow-hidden h-64 shrink-0">
@@ -155,110 +130,56 @@
                         </div>
                     </div>
                     <div class="p-6 flex flex-col flex-grow">
-                        <div class="flex justify-between items-start mb-2">
-                            <h4 class="text-xl font-bold font-serif text-gray-900 leading-tight">${product.title}</h4>
-                        </div>
+                        <h4 class="text-xl font-bold font-serif text-gray-900 leading-tight mb-2">${product.title}</h4>
                         <p class="text-gray-500 text-sm mb-4 line-clamp-2">${product.desc}</p>
-                        
                         <div class="mt-auto pt-4 border-t border-gray-100">
-                            <div class="flex items-end justify-between">
-                                <div>
-                                    <p class="text-xs text-gray-400 uppercase tracking-wider">Starting at</p>
-                                    <p class="text-2xl">${priceHtml} <span class="text-sm text-gray-500 font-normal">/ ${product.unit}</span></p>
-                                </div>
-                            </div>
+                            <p class="text-xs text-gray-400 uppercase tracking-wider">Starting at</p>
+                            <p class="text-2xl">${priceHtml} <span class="text-sm text-gray-500 font-normal">/ ${product.unit}</span></p>
                         </div>
                     </div>
                 `;
                 gallery.appendChild(card);
             });
         }
-
-        // Initialize
         initApp();
     </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Playfair+Display:wght@700&display=swap');
-        
-        :root {
-            --primary: #2d5a27; /* Nature Green */
-            --secondary: #f4f1ea; /* Soft Paper */
-            --accent: #d4af37; /* Gold/Brass accent */
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            scroll-behavior: smooth;
-        }
-
-        .font-serif {
-            font-family: 'Playfair Display', serif;
-        }
-
+        :root { --primary: #2d5a27; --secondary: #f4f1ea; --accent: #d4af37; }
+        body { font-family: 'Inter', sans-serif; scroll-behavior: smooth; }
+        .font-serif { font-family: 'Playfair Display', serif; }
         .bg-nature { background-color: var(--primary); }
         .text-nature { color: var(--primary); }
         .bg-cream { background-color: var(--secondary); }
         .text-accent { color: var(--accent); }
-        .bg-accent { background-color: var(--accent); }
-
-        .nav-link {
-            position: relative;
-            transition: color 0.3s ease;
-        }
-        .nav-link::after {
-            content: '';
-            position: absolute;
-            width: 0;
-            height: 2px;
-            bottom: -4px;
-            left: 0;
-            background-color: var(--accent);
-            transition: width 0.3s ease;
-        }
-        .nav-link:hover::after {
-            width: 100%;
-        }
-
-        .hero-gradient {
-            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1585314062340-f1a5a7c9328d?auto=format&fit=crop&q=80&w=1600');
-            background-size: cover;
-            background-position: center;
-        }
-
-        .card-zoom:hover img {
-            transform: scale(1.1);
-        }
+        .nav-link { position: relative; transition: color 0.3s ease; }
+        .nav-link::after { content: ''; position: absolute; width: 0; height: 2px; bottom: -4px; left: 0; background-color: var(--accent); transition: width 0.3s ease; }
+        .nav-link:hover::after { width: 100%; }
+        .hero-gradient { background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url('https://images.unsplash.com/photo-1585314062340-f1a5a7c9328d?auto=format&fit=crop&q=80&w=1600'); background-size: cover; background-position: center; }
+        .card-zoom:hover img { transform: scale(1.1); }
     </style>
 </head>
 <body class="bg-white text-gray-800">
 
-    <!-- Navigation -->
     <nav class="fixed w-full z-50 bg-white/90 backdrop-blur-md shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-20 items-center">
-                <div class="flex-shrink-0 flex items-center">
-                    <span class="text-3xl font-serif font-bold text-nature">SECHS<span class="text-accent">.IN</span></span>
+                <div class="flex-shrink-0 flex items-center gap-3">
+                    <img src="1767195556938.jpg.jpg" class="h-12 w-12 rounded-full object-cover shadow-sm border border-gray-100" alt="Logo">
+                    <span class="text-2xl font-serif font-bold text-nature hidden sm:inline">SECHS<span class="text-accent">.IN</span></span>
                 </div>
-                
-                <!-- Desktop Menu -->
                 <div class="hidden md:flex space-x-8 items-center">
                     <a href="#home" class="nav-link font-medium">Home</a>
-                    <a href="#products" class="nav-link font-medium">Collections & Works</a>
+                    <a href="#products" class="nav-link font-medium">Collections</a>
                     <a href="#about" class="nav-link font-medium">About</a>
                     <a href="#contact" class="nav-link font-medium">Contact</a>
-                    <a href="#contact" class="bg-nature text-white px-6 py-2 rounded-full hover:bg-opacity-90 transition shadow-md">Book Installation</a>
+                    <a href="tel:+918610780110" class="bg-nature text-white px-6 py-2 rounded-full hover:bg-opacity-90 transition shadow-md">Call Now</a>
                 </div>
-
-                <!-- Mobile Menu Button -->
                 <div class="md:hidden">
-                    <button id="mobile-menu-button" class="text-nature p-2">
-                        <i class="fa-solid fa-bars text-2xl"></i>
-                    </button>
+                    <button id="mobile-menu-button" class="text-nature p-2"><i class="fa-solid fa-bars text-2xl"></i></button>
                 </div>
             </div>
         </div>
-
-        <!-- Mobile Menu -->
         <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-gray-100 p-4 space-y-4 shadow-xl">
             <a href="#home" class="block text-lg font-medium py-2">Home</a>
             <a href="#products" class="block text-lg font-medium py-2">Collections</a>
@@ -267,293 +188,113 @@
         </div>
     </nav>
 
-    <!-- 1. Home Page Section -->
     <section id="home" class="pt-20">
-        <div class="hero-gradient h-[90vh] flex items-center justify-center text-center text-white px-4">
+        <div class="hero-gradient h-[85vh] flex items-center justify-center text-center text-white px-4">
             <div class="max-w-3xl">
                 <h1 class="text-5xl md:text-7xl font-serif mb-6 leading-tight">Elevate Your Space with Nature & Art</h1>
-                <p class="text-xl mb-8 text-gray-200">Premium Wallpapers and Realistic Artificial Plants for Homes & Offices. Professional installation services across Tamil Nadu.</p>
+                <p class="text-xl mb-8 text-gray-200">Premium Wallpapers, Flooring and Realistic Artificial Plants. Expert installation across Tamil Nadu.</p>
                 <div class="flex flex-col sm:flex-row gap-4 justify-center">
                     <a href="#products" class="bg-nature text-white px-10 py-4 rounded-lg text-lg font-semibold hover:scale-105 transition-transform">Explore Collections</a>
                     <a href="#locations" class="bg-white/10 backdrop-blur-md border border-white/30 text-white px-10 py-4 rounded-lg text-lg font-semibold hover:bg-[#d4af37] hover:text-[#2d5a27] hover:border-[#d4af37] active:bg-white active:text-[#2d5a27] transition duration-300">Our Showrooms</a>
                 </div>
             </div>
         </div>
-
-        <!-- Brief Features -->
-        <div class="max-w-7xl mx-auto px-4 py-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-            <div class="p-6">
-                <div class="w-16 h-16 bg-cream rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i class="fa-solid fa-leaf text-nature text-2xl"></i>
-                </div>
-                <h3 class="text-xl font-bold mb-2">Zero Maintenance</h3>
-                <p class="text-gray-600">Evergreen artificial plants that stay vibrant all year round without water or sunlight.</p>
-            </div>
-            <div class="p-6">
-                <div class="w-16 h-16 bg-cream rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i class="fa-solid fa-wand-magic-sparkles text-nature text-2xl"></i>
-                </div>
-                <h3 class="text-xl font-bold mb-2">Expert Installation</h3>
-                <p class="text-gray-600">Professional wallpaper application and vertical garden setup by our trained team.</p>
-            </div>
-            <div class="p-6">
-                <div class="w-16 h-16 bg-cream rounded-full flex items-center justify-center mx-auto mb-4">
-                    <i class="fa-solid fa-map-location-dot text-nature text-2xl"></i>
-                </div>
-                <h3 class="text-xl font-bold mb-2">Across Tamil Nadu</h3>
-                <p class="text-gray-600">Serving major cities with dedicated showrooms and rapid on-site service.</p>
-            </div>
-        </div>
     </section>
 
-    <!-- 2. Products & Works Section -->
     <section id="products" class="py-20 bg-gray-50">
         <div class="max-w-7xl mx-auto px-4">
             <div class="text-center mb-16">
                 <h2 class="text-4xl font-serif font-bold mb-4">Our Collections & Works</h2>
-                <p class="text-gray-500 max-w-2xl mx-auto mb-8">Browse our latest designs and previous installation projects. Prices shown are indicative per square foot.</p>
-                
                 <div class="flex flex-wrap justify-center gap-4 mt-8">
-                    <button onclick="handleFilterClick('all')" class="px-6 py-2 rounded-full bg-nature text-white filter-btn shadow-md hover:bg-[#d4af37] hover:text-[#2d5a27] hover:border-[#d4af37] transition" id="btn-all">All Collections</button>
-                    <button onclick="handleFilterClick('wallpaper')" class="px-6 py-2 rounded-full bg-white border border-nature text-nature hover:bg-[#d4af37] hover:text-[#2d5a27] hover:border-[#d4af37] transition filter-btn" id="btn-wallpaper">Wallpapers</button>
-                    <button onclick="handleFilterClick('plants')" class="px-6 py-2 rounded-full bg-white border border-nature text-nature hover:bg-[#d4af37] hover:text-[#2d5a27] hover:border-[#d4af37] transition filter-btn" id="btn-plants">Artificial Plants</button>
-                    <button onclick="handleFilterClick('flooring')" class="px-6 py-2 rounded-full bg-white border border-nature text-nature hover:bg-[#d4af37] hover:text-[#2d5a27] hover:border-[#d4af37] transition filter-btn" id="btn-flooring">Floorings</button>
-                    <button onclick="handleFilterClick('curtains')" class="px-6 py-2 rounded-full bg-white border border-nature text-nature hover:bg-[#d4af37] hover:text-[#2d5a27] hover:border-[#d4af37] transition filter-btn" id="btn-curtains">Curtains & Blinds</button>
+                    <button onclick="handleFilterClick('all')" class="px-6 py-2 rounded-full bg-nature text-white filter-btn shadow-md hover:bg-[#d4af37] hover:text-[#2d5a27] transition" id="btn-all">All</button>
+                    <button onclick="handleFilterClick('wallpaper')" class="px-6 py-2 rounded-full bg-white border border-nature text-nature hover:bg-[#d4af37] hover:text-[#2d5a27] transition filter-btn" id="btn-wallpaper">Wallpapers</button>
+                    <button onclick="handleFilterClick('plants')" class="px-6 py-2 rounded-full bg-white border border-nature text-nature hover:bg-[#d4af37] hover:text-[#2d5a27] transition filter-btn" id="btn-plants">Artificial Plants</button>
+                    <button onclick="handleFilterClick('flooring')" class="px-6 py-2 rounded-full bg-white border border-nature text-nature hover:bg-[#d4af37] hover:text-[#2d5a27] transition filter-btn" id="btn-flooring">Floorings</button>
+                    <button onclick="handleFilterClick('curtains')" class="px-6 py-2 rounded-full bg-white border border-nature text-nature hover:bg-[#d4af37] hover:text-[#2d5a27] transition filter-btn" id="btn-curtains">Curtains & Blinds</button>
                 </div>
             </div>
-
-            <!-- Gallery Grid (Populated by Firebase) -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="gallery">
-                <!-- Fallback content if JS fails or loading -->
-                <div class="col-span-full flex flex-col items-center justify-center py-12 text-gray-500">
-                    <i class="fa-solid fa-circle-notch fa-spin text-3xl mb-4 text-nature"></i>
-                    <p>Loading our latest collections...</p>
-                </div>
-            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" id="gallery"></div>
         </div>
     </section>
 
-    <!-- 3. About Section with Multi-Location -->
     <section id="about" class="py-20">
         <div class="max-w-7xl mx-auto px-4">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                 <div>
-                    <h2 class="text-4xl font-serif font-bold mb-6 text-nature">Bringing Nature Indoors Since 2018</h2>
-                    <p class="text-gray-600 mb-6 leading-relaxed">
-                        At SECHS.IN, we believe your environment directly impacts your mood and productivity. We specialize in high-end wallpaper designs and ultra-realistic artificial plant solutions that require zero maintenance but provide maximum aesthetic value.
-                    </p>
-                    <p class="text-gray-600 mb-8 leading-relaxed">
-                        Starting with a small workshop, we have expanded to multiple locations across Tamil Nadu, serving thousands of happy homeowners and businesses.
-                    </p>
-                    
-                    <div class="space-y-6">
-                        <div class="flex items-start gap-4">
-                            <div class="mt-1 bg-cream p-3 rounded-lg"><i class="fa-solid fa-check text-nature"></i></div>
-                            <div>
-                                <h4 class="font-bold">500+ Projects Completed</h4>
-                                <p class="text-sm text-gray-500">From studio apartments to luxury hotels.</p>
-                            </div>
+                    <h2 class="text-4xl font-serif font-bold mb-6 text-nature">Style. Shine. Surround.</h2>
+                    <p class="text-gray-600 mb-6">At SECHS.IN, we specialize in high-end interior solutions that transform your environment. From realistic greenery to luxury wall coverings, we bring nature and elegance indoors with professional craftsmanship.</p>
+                    <div id="locations" class="space-y-4">
+                        <div class="bg-cream p-5 rounded-xl border border-gray-100">
+                            <h4 class="font-bold text-nature">Erode Head Office</h4>
+                            <p class="text-sm text-gray-500">Karthikesh Complex, Thindal Medu, Erode - 638012</p>
                         </div>
-                        <div class="flex items-start gap-4">
-                            <div class="mt-1 bg-cream p-3 rounded-lg"><i class="fa-solid fa-check text-nature"></i></div>
-                            <div>
-                                <h4 class="font-bold">2-Year Warranty</h4>
-                                <p class="text-sm text-gray-500">On all our premium wallpaper installations.</p>
-                            </div>
+                        <div class="bg-cream p-5 rounded-xl border border-gray-100">
+                            <h4 class="font-bold text-nature">Dindigul Branch</h4>
+                            <p class="text-sm text-gray-500">Near DMart, Nandhavanappatty, Dindigul - 624001</p>
                         </div>
                     </div>
                 </div>
-
-                <!-- Locations Cards -->
-                <div id="locations" class="grid grid-cols-1 gap-6">
-                    <h3 class="text-2xl font-bold mb-4">Our Showrooms in Tamil Nadu</h3>
-                    
-                    <!-- Location 1 -->
-                    <div class="bg-cream p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6">
-                        <div class="flex-1">
-                            <h4 class="text-xl font-bold mb-2">Erode Head Office</h4>
-                            <p class="text-gray-600 mb-4 text-sm">Karthikesh Complex, Thindal Medu, Erode - 638012</p>
-                            <a href="https://maps.google.com" target="_blank" class="inline-flex items-center text-nature font-bold hover:underline">
-                                <i class="fa-solid fa-location-dot mr-2"></i> Open in Google Maps
-                            </a>
-                        </div>
-                        <div class="w-full md:w-32 h-24 bg-gray-200 rounded-lg overflow-hidden grayscale hover:grayscale-0 transition duration-500">
-                             <img src="https://images.unsplash.com/photo-1542362567-b052cb1341f1?auto=format&fit=crop&q=80&w=300" class="w-full h-full object-cover">
-                        </div>
-                    </div>
-
-                    <!-- Location 2 -->
-                    <div class="bg-cream p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6">
-                        <div class="flex-1">
-                            <h4 class="text-xl font-bold mb-2">Dindigul</h4>
-                            <p class="text-gray-600 mb-4 text-sm">near DMart, Nandhavanappatty, Dindigul - 624001</p>
-                            <a href="https://maps.google.com" target="_blank" class="inline-flex items-center text-nature font-bold hover:underline">
-                                <i class="fa-solid fa-location-dot mr-2"></i> Open in Google Maps
-                            </a>
-                        </div>
-                        <div class="w-full md:w-32 h-24 bg-gray-200 rounded-lg overflow-hidden grayscale hover:grayscale-0 transition duration-500">
-                            <img src="https://images.unsplash.com/photo-1582037928827-422bc8c140b0?auto=format&fit=crop&q=80&w=300" class="w-full h-full object-cover">
-                        </div>
-                    </div>
-
-                    <div class="text-center p-4 border-2 border-dashed border-gray-200 rounded-xl">
-                        <p class="text-gray-500 italic">More locations opening soon in Madurai & Trichy!</p>
-                    </div>
+                <div class="relative rounded-2xl overflow-hidden shadow-2xl">
+                    <img src="1767195556938.jpg.jpg" class="w-full h-full object-cover">
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- 4. Contact Section -->
     <section id="contact" class="py-20 bg-nature text-white">
         <div class="max-w-7xl mx-auto px-4">
             <div class="text-center mb-16">
                 <h2 class="text-4xl font-serif font-bold mb-4">Get a Free Consultation</h2>
                 <p class="text-gray-300">Share your requirements and we'll get back to you with a personalized quote.</p>
             </div>
-
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-12">
-                <!-- Info -->
                 <div class="space-y-8">
                     <div>
-                        <h4 class="text-accent font-bold uppercase tracking-widest text-sm mb-4">Contact Details</h4>
-                        <div class="space-y-4">
-                            <p class="flex items-center gap-4">
-                                <i class="fa-solid fa-phone text-accent"></i> +91 8610780110
-                            </p>
-                            <p class="flex items-center gap-4">
-                                <i class="fa-solid fa-envelope text-accent"></i> support@sechs.in
-                            </p>
-                            <p class="flex items-center gap-4">
-                                <i class="fa-solid fa-clock text-accent"></i> Mon - Sat: 10AM - 8PM
-                            </p>
-                        </div>
+                        <h4 class="text-accent font-bold uppercase tracking-widest text-sm mb-4">Contact Info</h4>
+                        <p><i class="fa-solid fa-phone mr-2"></i> +91 8610780110</p>
+                        <p><i class="fa-solid fa-envelope mr-2"></i> support@sechs.in</p>
                     </div>
-                    <div>
-                        <h4 class="text-accent font-bold uppercase tracking-widest text-sm mb-4">Follow Us</h4>
-                        <div class="flex gap-4">
-                            <a href=" https://www.instagram.com/sechserode?igsh=Y2dhaXM1NDlyeHdp" class="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white hover:text-nature transition"><i class="fa-brands fa-instagram"></i></a>
-                            <a href="https://www.facebook.com/share/1ApnFyh5de/" class="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white hover:text-nature transition"><i class="fa-brands fa-facebook-f"></i></a>
-                            <a href="#" class="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white hover:text-nature transition"><i class="fa-brands fa-whatsapp"></i></a>
-                        </div>
+                    <div class="flex gap-4">
+                        <a href="https://www.instagram.com/sechserode" class="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white hover:text-nature transition"><i class="fa-brands fa-instagram"></i></a>
+                        <a href="https://www.facebook.com/share/1ApnFyh5de/" class="w-10 h-10 rounded-full border border-white/20 flex items-center justify-center hover:bg-white hover:text-nature transition"><i class="fa-brands fa-facebook-f"></i></a>
                     </div>
                 </div>
-
-                <!-- Form -->
                 <div class="lg:col-span-2">
                     <form id="contactForm" class="grid grid-cols-1 md:grid-cols-2 gap-6" onsubmit="handleSubmit(event)">
-                        <div>
-                            <label class="block text-sm font-medium mb-2">Your Name</label>
-                            <input type="text" required class="w-full bg-white/10 border border-white/20 rounded-lg p-3 focus:outline-none focus:border-accent transition text-white">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-2">Phone Number</label>
-                            <input type="tel" required class="w-full bg-white/10 border border-white/20 rounded-lg p-3 focus:outline-none focus:border-accent transition text-white">
-                        </div>
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium mb-2">Service Interested In</label>
-                            <select class="w-full bg-white/10 border border-white/20 rounded-lg p-3 focus:outline-none focus:border-accent transition text-white appearance-none">
-                                <option class="bg-nature">Wallpaper Selling & Installation</option>
-                                <option class="bg-nature">Artificial Plants / Vertical Gardens</option>
-                                <option class="bg-nature">Bulk Order for Commercial Spaces</option>
-                                <option class="bg-nature">Other Services</option>
-                            </select>
-                        </div>
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium mb-2">Message</label>
-                            <textarea rows="4" class="w-full bg-white/10 border border-white/20 rounded-lg p-3 focus:outline-none focus:border-accent transition text-white"></textarea>
-                        </div>
-                        <div class="md:col-span-2">
-                            <button type="submit" class="w-full bg-accent text-nature font-bold py-4 rounded-lg hover:scale-[1.02] transition active:scale-95 shadow-lg">Send Inquiry</button>
-                        </div>
+                        <input type="text" id="c_name" required placeholder="Your Name" class="bg-white/10 border border-white/20 rounded-lg p-3 text-white focus:border-accent outline-none">
+                        <input type="tel" id="c_phone" required placeholder="Phone Number" class="bg-white/10 border border-white/20 rounded-lg p-3 text-white focus:border-accent outline-none">
+                        <select id="c_service" class="md:col-span-2 bg-white/10 border border-white/20 rounded-lg p-3 text-white focus:border-accent outline-none">
+                            <option value="Wallpaper" class="bg-nature">Wallpaper Installation</option>
+                            <option value="Plants" class="bg-nature">Artificial Plants</option>
+                            <option value="Flooring" class="bg-nature">Flooring Works</option>
+                            <option value="Curtains" class="bg-nature">Curtains & Blinds</option>
+                        </select>
+                        <textarea id="c_message" required rows="4" placeholder="Your Requirements" class="md:col-span-2 bg-white/10 border border-white/20 rounded-lg p-3 text-white focus:border-accent outline-none"></textarea>
+                        <button type="submit" class="md:col-span-2 bg-accent text-nature font-bold py-4 rounded-lg hover:scale-[1.01] transition shadow-lg">Send Inquiry</button>
                     </form>
-                    <div id="successMsg" class="hidden mt-6 p-4 bg-green-500/20 border border-green-500 rounded-lg text-center">
-                        Message sent successfully! We will contact you shortly.
+                    <div id="successMsg" class="hidden text-center p-8 bg-white/10 rounded-xl border border-white/20">
+                        <i class="fa-solid fa-circle-check text-5xl mb-4 text-accent"></i>
+                        <h3 class="text-2xl font-bold">Message Sent!</h3>
+                        <p class="text-gray-300">We have received your enquiry. Our team will contact you shortly.</p>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Footer -->
-    <footer class="bg-gray-900 text-gray-400 py-12">
-        <div class="max-w-7xl mx-auto px-4 text-center">
-            <div class="text-2xl font-serif font-bold text-white mb-6">SECHS.IN</div>
-            <p class="max-w-md mx-auto mb-8">Transforming spaces across Tamil Nadu with premium decor and expert craftsmanship.</p>
-            <div class="flex justify-center gap-8 mb-8 text-sm">
-                <a href="#" class="hover:text-white">Privacy Policy</a>
-                <a href="#" class="hover:text-white">Terms of Service</a>
-                <a href="#" class="hover:text-white">Refund Policy</a>
-            </div>
-            <div class="border-t border-gray-800 pt-8">
-                &copy; 2026 Sechs. All rights reserved.
-            </div>
-        </div>
+    <footer class="bg-gray-900 text-gray-400 py-12 text-center border-t border-gray-800">
+        <p>&copy; 2026 Sechs Decor Solutions. All rights reserved.</p>
     </footer>
 
-    <!-- Scripts -->
     <script>
-        // Mobile Menu Logic
         const btn = document.getElementById('mobile-menu-button');
         const menu = document.getElementById('mobile-menu');
-        
-        btn.addEventListener('click', () => {
-            menu.classList.toggle('hidden');
-        });
-
-        // Close menu when clicking links
-        menu.querySelectorAll('a').forEach(link => {
-            link.addEventListener('click', () => {
-                menu.classList.add('hidden');
-            });
-        });
-
-        // UI Handlers
-        function handleFilterClick(category) {
-            const buttons = document.querySelectorAll('.filter-btn');
-            
-            // Visual feedback
-            buttons.forEach(b => {
-                b.classList.remove('bg-nature', 'text-white');
-                b.classList.add('bg-white', 'text-nature', 'border', 'border-nature');
-            });
-            
-            const activeBtn = document.getElementById('btn-' + category);
-            if(activeBtn) {
-                activeBtn.classList.remove('bg-white', 'text-nature', 'border');
-                activeBtn.classList.add('bg-nature', 'text-white');
-            }
-
-            // Call window function to render
-            if (window.renderGallery) {
-                window.renderGallery(category);
-            }
+        btn.addEventListener('click', () => menu.classList.toggle('hidden'));
+        function handleFilterClick(cat) {
+            document.querySelectorAll('.filter-btn').forEach(b => { b.classList.remove('bg-nature', 'text-white'); b.classList.add('bg-white', 'text-nature'); });
+            document.getElementById('btn-' + cat).classList.add('bg-nature', 'text-white');
+            if (window.renderGallery) window.renderGallery(cat);
         }
-
-        function handleSubmit(e) {
-            e.preventDefault();
-            const form = document.getElementById('contactForm');
-            const msg = document.getElementById('successMsg');
-            
-            form.style.display = 'none';
-            msg.classList.remove('hidden');
-        }
-
-        // Smooth scroll adjustment
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                const headerOffset = 80;
-                const elementPosition = target.getBoundingClientRect().top;
-                const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
-
-                window.scrollTo({
-                    top: offsetPosition,
-                    behavior: 'smooth'
-                });
-            });
-        });
     </script>
 </body>
 </html>
