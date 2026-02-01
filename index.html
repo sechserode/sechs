@@ -11,7 +11,7 @@
     <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, query, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // YOUR FIREBASE CONFIGURATION
@@ -124,7 +124,10 @@
 
             filtered.forEach(product => {
                 const card = document.createElement('div');
-                card.className = 'bg-white rounded-xl overflow-hidden shadow-lg card-zoom hover:shadow-xl transition-shadow duration-300 flex flex-col h-full border border-gray-100';
+                
+                // Opacity style for out of stock items
+                const isOutOfStock = product.tag === 'stockout';
+                card.className = `bg-white rounded-xl overflow-hidden shadow-lg card-zoom hover:shadow-xl transition-shadow duration-300 flex flex-col h-full border border-gray-100 ${isOutOfStock ? 'opacity-75' : ''}`;
                 
                 // Determine price display logic
                 const hasDiscount = product.discountPrice && Number(product.discountPrice) > 0;
@@ -133,9 +136,20 @@
                     ? `<span class="text-red-600 font-bold">₹${product.discountPrice}</span> <span class="text-sm text-gray-400 line-through font-normal ml-2">₹${product.price}</span>` 
                     : `<span class="text-nature font-bold">₹${product.price}</span>`;
 
+                // Badge Logic
+                let badgeHtml = '';
+                if (product.tag === 'limited') {
+                    badgeHtml = '<span class="absolute top-4 left-4 bg-red-600 text-white text-xs font-bold px-3 py-1 rounded shadow-md z-10 animate-pulse">Limited Offer</span>';
+                } else if (product.tag === 'stockout') {
+                    badgeHtml = '<span class="absolute top-4 left-4 bg-gray-800 text-white text-xs font-bold px-3 py-1 rounded shadow-md z-10">Out of Stock</span>';
+                } else if (product.tag === 'new') {
+                    badgeHtml = '<span class="absolute top-4 left-4 bg-green-600 text-white text-xs font-bold px-3 py-1 rounded shadow-md z-10">New Arrival</span>';
+                }
+
                 card.innerHTML = `
                     <div class="relative overflow-hidden h-64 shrink-0">
-                        <img src="${product.image}" alt="${product.title}" class="w-full h-full object-cover transition-transform duration-500" onerror="this.src='https://via.placeholder.com/800x600?text=No+Image'">
+                        ${badgeHtml}
+                        <img src="${product.image}" alt="${product.title}" class="w-full h-full object-cover transition-transform duration-500 ${isOutOfStock ? 'grayscale' : ''}" onerror="this.src='https://via.placeholder.com/800x600?text=No+Image'">
                         <div class="absolute top-4 right-4 bg-white/90 backdrop-blur text-nature px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm">
                             ${product.category}
                         </div>
