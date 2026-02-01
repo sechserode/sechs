@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sechs.in | Admin Panel</title>
+    <!-- Favicon Added Here -->
     <link rel="icon" href="favicon2.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -76,7 +77,9 @@
                     'wallpaper': [],
                     'pvc': [],
                     'plants': [],
-                    'install': [],
+                    'flooring': [],
+                    'curtains': [],
+                    'install': [], // Kept for backwards compatibility if any exist
                     'other': []
                 };
 
@@ -109,13 +112,23 @@
                             ? `<span class="text-red-600 font-bold">₹${data.discountPrice}</span> <span class="text-gray-400 line-through text-[10px]">₹${data.price}</span>` 
                             : `₹${data.price}`;
 
+                        // Tag Badge Logic
+                        let tagBadge = '';
+                        if (data.tag === 'limited') {
+                            tagBadge = '<span class="ml-2 bg-orange-100 text-orange-700 text-[10px] px-1.5 py-0.5 rounded font-bold">Limited Offer</span>';
+                        } else if (data.tag === 'stockout') {
+                            tagBadge = '<span class="ml-2 bg-gray-800 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">Out of Stock</span>';
+                        } else if (data.tag === 'new') {
+                            tagBadge = '<span class="ml-2 bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded font-bold">New</span>';
+                        }
+
                         const item = document.createElement('div');
                         item.className = "flex items-center justify-between p-4 bg-white rounded-lg border border-gray-100 hover:border-nature/30 hover:shadow-sm transition mb-2 group";
                         item.innerHTML = `
                             <div class="flex items-center gap-4 overflow-hidden">
                                 <img src="${data.image}" class="w-12 h-12 object-cover rounded-md bg-gray-50 shrink-0 border border-gray-100" onerror="this.src='https://via.placeholder.com/50'">
                                 <div class="min-w-0">
-                                    <h4 class="font-bold text-gray-800 truncate text-sm">${data.title}</h4>
+                                    <h4 class="font-bold text-gray-800 truncate text-sm flex items-center">${data.title} ${tagBadge}</h4>
                                     <p class="text-xs text-gray-500 truncate mt-0.5">${priceDisplay} / ${data.unit}</p>
                                 </div>
                             </div>
@@ -134,8 +147,9 @@
 
                 // Render groups in specific order
                 renderGroup('Wallpapers', groups['wallpaper']);
-                renderGroup('PVC Panels', groups['pvc']);
                 renderGroup('Artificial Plants', groups['plants']);
+                renderGroup('Floorings', groups['flooring']);
+                renderGroup('Curtains & Blinds', groups['curtains']);
                 renderGroup('Previous Works', groups['install']);
                 renderGroup('Uncategorized', groups['other']);
 
@@ -164,9 +178,10 @@
                 image: document.getElementById('p_image').value,
                 category: document.getElementById('p_category').value,
                 price: document.getElementById('p_price').value,
-                discountPrice: document.getElementById('p_discount').value, // NEW Field
+                discountPrice: document.getElementById('p_discount').value,
                 unit: document.getElementById('p_unit').value,
                 desc: document.getElementById('p_desc').value,
+                tag: document.getElementById('p_tag').value, // NEW: Tag Field
                 updatedAt: new Date().toISOString()
             };
 
@@ -212,9 +227,10 @@
             document.getElementById('p_image').value = product.image || '';
             document.getElementById('p_category').value = product.category || 'wallpaper';
             document.getElementById('p_price').value = product.price || '';
-            document.getElementById('p_discount').value = product.discountPrice || ''; // NEW Field
+            document.getElementById('p_discount').value = product.discountPrice || '';
             document.getElementById('p_unit').value = product.unit || '';
             document.getElementById('p_desc').value = product.desc || '';
+            document.getElementById('p_tag').value = product.tag || ''; // Populate Tag
 
             // Update UI state
             document.getElementById('formTitle').innerText = 'Edit Product';
@@ -361,14 +377,25 @@
                             <input type="text" id="p_unit" required placeholder="sq.ft / piece" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-nature transition">
                         </div>
                         
-                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Category</label>
-                            <select id="p_category" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-nature transition bg-white">
-                                <option value="wallpaper">Wallpaper</option>
-                                <option value="plants">Artificial Plants</option>
-                                <option value="install">Previous Works</option>
-                                <option value="pvc">PVC Panels</option>
-                            </select>
+                         <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Category</label>
+                                <select id="p_category" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-nature transition bg-white">
+                                    <option value="wallpaper">Wallpaper</option>
+                                    <option value="plants">Artificial Plants</option>
+                                    <option value="flooring">Floorings</option>
+                                    <option value="curtains">Curtains & Blinds</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-1">Product Tag</label>
+                                <select id="p_tag" class="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:border-nature transition bg-white">
+                                    <option value="">None</option>
+                                    <option value="limited" class="text-orange-600 font-bold">Limited Offer</option>
+                                    <option value="stockout" class="text-gray-600 font-bold">Out of Stock</option>
+                                    <option value="new" class="text-green-600 font-bold">New Arrival</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
@@ -458,6 +485,3 @@
     </style>
 </body>
 </html>
-
-
-
